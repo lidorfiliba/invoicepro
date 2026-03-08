@@ -504,6 +504,7 @@
           <input type="text" id="search-input" placeholder="חיפוש..." oninput="renderList()">
         </div>
         <button class="btn-refresh" onclick="loadInvoices()" title="רענן">🔄</button>
+        <button class="btn-refresh" onclick="exportToExcel()" title="ייצוא Excel" style="background:rgba(16,185,129,0.15);border-color:rgba(16,185,129,0.4);color:var(--green2);font-size:15px">⬇</button>
       </div>
       <div id="list-container">
         <div class="loading"><div class="spinner"></div><div style="font-size:13px;color:var(--text3)">טוען חשבוניות...</div></div>
@@ -1091,7 +1092,55 @@ function showToast(msg, color) {
   t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2500);
 }
 
-function logout() {
+// ── EXPORT TO EXCEL ───────────────────────────────────────────
+function exportToExcel() {
+  if (!invoices.length) { showToast('⚠️ אין נתונים לייצוא', 'var(--gold)'); return; }
+
+  // Build CSV with BOM for Hebrew support in Excel
+  const BOM = '\uFEFF';
+  const headers = [
+    'מספר חשבונית', 'סוג', 'סטטוס', 'תאריך', 'תאריך פירעון',
+    'שם פרטי', 'שם משפחה', 'חברה', 'טלפון', 'אימייל', 'כתובת',
+    'ע.מ / ח.פ', 'אמצעי תשלום', 'סכום לפני הנחה', 'הנחה %',
+    'מע"מ %', 'סה"כ לתשלום', 'הערות', 'נוצר ע"י'
+  ];
+
+  const rows = invoices.map(inv => {
+    const items = inv.items || [];
+    const subtotal = items.reduce((s, it) => s + it.qty * it.price, 0);
+    return [
+      inv.invoiceNum,
+      (inv.docType || 'invoice') === 'invoice' ? 'חשבונית' : 'הזמנה',
+      inv.status === 'done' ? 'בוצע' : 'ממתין',
+      inv.date || '',
+      inv.due || '',
+      inv.firstName || '',
+      inv.lastName || '',
+      inv.company || '',
+      inv.phone || '',
+      inv.email || '',
+      inv.address || '',
+      inv.taxId || '',
+      inv.payment || '',
+      subtotal.toFixed(2),
+      inv.discount || 0,
+      inv.vat || 0,
+      (inv.total || 0).toFixed(2),
+      inv.notes || '',
+      inv.createdBy || ''
+    ].map(v => `"${String(v).replace(/"/g, '""')}"`);
+  });
+
+  const csv = BOM + [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `חשבוניות_${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📊 הקובץ הורד בהצלחה!', 'var(--green)');
+}
   localStorage.removeItem('invoicepro_user');
   CURRENT_USER = '';
   location.reload();
